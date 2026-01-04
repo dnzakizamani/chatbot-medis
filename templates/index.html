@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asisten AI Medis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            text-align: right;
+        }
+        .bot-message {
+            background-color: #f1f8e9;
+        }
+        .input-container {
+            display: flex;
+        }
+        #user-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #send-btn {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #send-btn:hover {
+            background-color: #2980b9;
+        }
+        .disclaimer {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        .warning {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Asisten AI Medis</h1>
+        <p>Jelaskan gejala atau keluhan kesehatan Anda di bawah ini. AI kami akan memberikan penjelasan sederhana tentang kemungkinan kondisi dan pengobatan.</p>
+
+        <div class="chat-container" id="chat-container">
+            <div class="message bot-message">
+                Halo! Saya adalah asisten AI medis Anda. Silakan jelaskan gejala atau keluhan kesehatan Anda, dan saya akan memberikan penjelasan sederhana tentang kemungkinan kondisi dan pengobatan. Ingat, ini bukan pengganti nasihat medis profesional.
+            </div>
+        </div>
+
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="Jelaskan gejala Anda..." />
+            <button id="send-btn">Kirim</button>
+        </div>
+
+        <div class="disclaimer">
+            <p class="warning"><strong>PERINGATAN MEDIS PENTING:</strong> Asisten AI ini hanya memberikan informasi umum dan bukan pengganti nasihat medis profesional, diagnosis, atau pengobatan. Selalu konsultasikan dengan tenaga medis yang berkualifikasi untuk setiap masalah kesehatan.</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('user-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const inputField = document.getElementById('user-input');
+            const message = inputField.value.trim();
+
+            if (!message) return;
+
+            // Display user message
+            displayMessage(message, 'user');
+            inputField.value = '';
+
+            // Send to backend
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.response) {
+                    displayMessage(data.response, 'bot');
+                } else {
+                    displayMessage('Maaf, terjadi kesalahan saat memproses permintaan Anda.', 'bot');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                displayMessage('Maaf, terjadi kesalahan saat menghubungi server.', 'bot');
+            });
+        }
+
+        function displayMessage(message, sender) {
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
+
+            // Clean up unwanted elements like ---
+            let cleanMessage = message.replace(/---/g, '');
+
+            // Split message into lines to handle lists properly
+            let lines = cleanMessage.split('\n');
+            let formattedLines = [];
+
+            for (let line of lines) {
+                // Convert #text# to <h1>text</h1>
+                line = line.replace(/#(.*?)#/g, '<h1>$1</h1>');
+                // Convert ##text## to <h2>text</h2>
+                line = line.replace(/##(.*?)##/g, '<h2>$1</h2>');
+                // Convert ###text### to <h3>text</h3>
+                line = line.replace(/###(.*?)###/g, '<h3>$1</h3>');
+                // Convert **text** to <strong>text</strong>
+                line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // Convert *text* to <em>text</em> (only if not part of a list)
+                line = line.replace(/(?<!\*)\*(?!\*)\s*(.*?)\s*(?!\*)\*(?!\*)/g, '<em>$1</em>');
+
+                // Check if this line is a list item (starts with * followed by a space)
+                if (line.trim().startsWith('* ')) {
+                    // Extract the list item content
+                    let listItem = line.trim().substring(2); // Remove '* ' prefix
+                    line = '<li>' + listItem + '</li>';
+                }
+
+                formattedLines.push(line);
+            }
+
+            // Join lines with double line breaks to create paragraph separation
+            let formattedMessage = formattedLines.join('\n\n');
+
+            // Wrap consecutive list items in <ul> tags
+            formattedMessage = formattedMessage.replace(/(<li>.*?<\/li>\s*)+/g, function(match) {
+                return '<ul>' + match.replace(/<li>.*?<\/li>/g, function(listItem) {
+                    // Extract content from each list item and wrap it
+                    let content = listItem.match(/<li>(.*?)<\/li>/);
+                    return content ? '<li>' + content[1] + '</li>' : listItem;
+                }) + '</ul>';
+            });
+
+            // Convert double line breaks to paragraph breaks and single line breaks to <br>
+            formattedMessage = formattedMessage.replace(/\n\s*\n/g, '</p><p>');
+            formattedMessage = formattedMessage.replace(/\n/g, '<br>');
+
+            // Add initial and final paragraph tags if needed
+            if (!formattedMessage.startsWith('<p>') && !formattedMessage.startsWith('<ul>') && !formattedMessage.startsWith('<h')) {
+                formattedMessage = '<p>' + formattedMessage;
+            }
+            if (!formattedMessage.endsWith('</p>') && !formattedMessage.endsWith('</ul>') && !formattedMessage.endsWith('>')) {
+                formattedMessage = formattedMessage + '</p>';
+            }
+
+            // Fix any potential issues with nested paragraph tags
+            formattedMessage = formattedMessage.replace(/<p><\/p>/g, '');
+            formattedMessage = formattedMessage.replace(/<p>(<ul>|<h[1-6]>)/g, '$1');
+            formattedMessage = formattedMessage.replace(/(<\/ul>|<\/h[1-6]>)<\/p>/g, '$1');
+
+            messageDiv.innerHTML = formattedMessage;
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
